@@ -33,7 +33,7 @@ Instruction to install all setup for database with order how to execute files:
 21) GRANT EXECUTE ON GVERDE TO ANONYMOUS;
 22) GRANT EXECUTE ON BLU TO ANONYMOUS;
 
-main page of site: http://oracle01.polo2.ad.unipi.it:8080/apex/{NOMEUTENTE DATABASE}.gui.aprihomepage --
+main page of site: http://oracle01.polo2.ad.unipi.it:8080/apex/{NOMEUTENTEDATABASE}.gui.aprihomepage -> NOMEUTENTEDATABASE=borrello per testing
 
 23) Rules and credentials to use and navigate properly on the site:
 
