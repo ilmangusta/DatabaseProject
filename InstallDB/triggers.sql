@@ -1,0 +1,535 @@
+drop trigger camera_disponibile;
+drop trigger camera_non_disponibile;
+drop trigger creaimbarco;
+drop trigger meno_postiliberi;
+drop trigger piu_postiliberi;
+drop trigger prenotazione_visite_lingua;
+drop trigger registra_modifiche_cliente;
+drop trigger tr_prenotazionevisita;
+drop trigger modificarecensione;
+drop trigger CHECK_DATAVISITA;
+drop trigger VISITASENZAGUIDA;
+drop trigger distanzaporti;
+
+-------Author: Fabiana Chericoni--------------
+
+CREATE OR REPLACE TRIGGER VISITASENZAGUIDA
+AFTER INSERT ON VISITAGUIDATA
+FOR EACH ROW
+DECLARE
+    IDNOGUIDA NUMBER;
+    
+BEGIN
+    SELECT IDGUIDA
+    INTO IDNOGUIDA
+    FROM PARLA
+    WHERE LINGUA='Nessunalingua';
+    
+    INSERT INTO GESTISCE VALUES(IDNOGUIDA,:NEW.IDVISITA,'Nessunalingua');
+
+END;
+/
+
+CREATE OR REPLACE TRIGGER MODIFICARECENSIONE
+AFTER UPDATE ON RECENSIONE
+FOR EACH ROW
+WHEN ((OLD.VOTO - NEW.VOTO) > 2)
+DECLARE
+
+CLIENTEANOMALO NUMBER;
+  
+BEGIN
+
+    SELECT IDCLIENTE
+    INTO CLIENTEANOMALO
+    FROM RECENSIONE INNER JOIN IMBARCO USING (IDIMBARCO)
+    WHERE IDIMBARCO=:OLD.IDIMBARCO AND IDVISITA=:OLD.IDVISITA;
+    
+    INSERT INTO RECENSIONEANOMALA VALUES (CLIENTEANOMALO,:OLD.IDVISITA,:OLD.VOTO,:NEW.VOTO);
+  
+END;
+/
+
+CREATE OR REPLACE TRIGGER REGISTRA_MODIFICHE_CLIENTE
+AFTER UPDATE OF INFORMAZIONIPAGAMENTO ON BE_UTENTE
+FOR EACH ROW
+BEGIN
+    INSERT INTO LOGCLIENTE (idcliente, campomodificato, valoreprecedente, valorenuovo, datamodifica)
+    VALUES (:NEW.idutente, 'INFORMAZIONIPAGAMENTO', :OLD.INFORMAZIONIPAGAMENTO, :NEW.INFORMAZIONIPAGAMENTO, SYSDATE);
+END;
+/
+
+-------Author: Samuele Boldrini--------------
+
+CREATE OR REPLACE TRIGGER CREAIMBARCO
+AFTER UPDATE ON PRENOTAZIONE
+FOR EACH ROW
+WHEN (new.QUANTITASALDATA = new.COSTOBASE)
+DECLARE
+    type clienti_t IS TABLE OF CLIENTERIFERIMENTO.IDCLIENTE%TYPE;
+
+    clienti clienti_t := clienti_t();
+
+    clienti_i INTEGER;
+    camere_i INTEGER;
+
+    n_clienti INTEGER;
+
+    n_imbarchi INTEGER;
+BEGIN
+    clienti_i := 1;
+    FOR CLIENTE IN
+    (
+        SELECT *
+        FROM CLIENTERIFERIMENTO C
+        WHERE C.IDPRENOTAZIONE = :new.IDPRENOTAZIONE
+    ) LOOP
+        clienti.extend;
+        clienti(clienti_i) := CLIENTE.IDCLIENTE;
+        clienti_i := clienti_i + 1;
+    END LOOP;
+
+    clienti_i := 1;
+    FOR PRE IN
+    (
+        SELECT *
+        FROM PREPRENOTAZIONE P
+        WHERE P.IDPRENOTAZIONE = :new.IDPRENOTAZIONE
+    )
+    LOOP
+        camere_i := 1;
+
+        FOR CAMERA_P IN
+        (
+            SELECT CA.IDCAMERA, IDNAVE, CA.TIPOLOGIA, CA.ISDISPONIBILE
+            FROM CAMERA CA
+            JOIN NAVE N
+            USING (IDNAVE)
+            JOIN CROCIERA CR
+            USING (IDNAVE)
+            WHERE CA.TIPOLOGIA = PRE.TIPOLOGIA
+            AND CR.IDCROCIERA = :new.IDCROCIERA
+        ) LOOP
+            n_clienti := 0;
+            EXIT WHEN (camere_i > PRE.QUANTITA);
+
+            IF (PRE.TIPOLOGIA = 'Singola')
+            THEN
+                n_clienti := 1;
+            ELSIF (PRE.TIPOLOGIA = 'Doppia')
+            THEN
+                n_clienti := 2;
+            ELSIF (PRE.TIPOLOGIA = 'Tripla')
+            THEN
+                n_clienti := 3;
+            END IF;
+            camere_i := camere_i + 1;
+
+            FOR i IN 1 .. n_clienti
+            LOOP
+                EXIT WHEN (clienti_i > clienti.count);
+                INSERT INTO IMBARCO VALUES (IDIMBARCOSEQ.NEXTVAL, CAMERA_P.IDCAMERA, PRE.IDPRENOTAZIONE, clienti(clienti_i));
+                clienti_i := clienti_i + 1;
+            END LOOP;
+
+            UPDATE CAMERA SET ISDISPONIBILE = 0 WHERE CAMERA.IDCAMERA = CAMERA_P.IDCAMERA;
+        END LOOP;
+    END LOOP;
+END;
+/
+
+
+
+
+-------Author: Andrea Ferrari--------------
+
+
+create or REPLACE view distanzaporti as
+select p.POSGEOGRAFICA as POSGEOGRAFICAPORTO, p.NOMEPORTO, r.DISTANZA, l.POSGEOGRAFICA as POSGEOGRAFICALOCALITA, l.NOMELOCALITA
+from porto P
+    inner join RAGGIUNGE r on r.POSGEOGRAFICAPORTO = p.POSGEOGRAFICA
+    inner join LOCALITA l on r.POSGEOGRAFICALOCALITA = l.POSGEOGRAFICA;
+
+CREATE OR REPLACE VIEW PORTIPARTENZA AS 
+  SELECT p.NOMEPORTO
+from INCLUDE i
+    join porto p on i.POSGEOGRAFICA = p.POSGEOGRAFICA
+    join tour t on t.IDTOUR = i.IDTOUR
+where i.ORDINE = 1;
+
+CREATE OR REPLACE  VIEW COUNTLUOGHI AS 
+  select li.NOMELUOGOINTERESSE, count(lv.IDVISITA) as conteggio
+    from LUOGOVISITA lv join LUOGOINTERESSE li using (IDLUOGOINTERESSE)
+    group by li.NOMELUOGOINTERESSE;
+
+CREATE OR REPLACE VIEW VISITEPERLOCALITA AS 
+  SELECT lc.POSGEOGRAFICA as POSGEOGRAFICA,
+    lc.NOMELOCALITA as NOMELOCALITA,
+    li.IDLUOGOINTERESSE as IDLUOGOINTERESSE,
+    li.NOMELUOGOINTERESSE as NOMELUOGOINTERESSE,
+    vg.IDVISITA as IDVISITA,
+    vg.NOMEVISITA as NOMEVISITA,
+    vg.COSTOVISITA AS COSTOVISITA
+from localita lc
+    inner join LUOGOINTERESSE li on lc.POSGEOGRAFICA = li.POSGEOGRAFICA
+    inner join LUOGOVISITA lv on lv.IDLUOGOINTERESSE = li.IDLUOGOINTERESSE
+    inner join VISITAGUIDATA vg on vg.IDVISITA = lv.IDVISITA;
+
+create or replace view prenotazioneivisite AS
+  select vg.IDVISITA, vg.NOMEVISITA, vg.COSTOVISITA
+  from VISITAGUIDATA vg 
+    inner join PRENOTAZIONEVISITA pv on pv.IDVISITA = vg.IDVISITA;
+
+create or REPLACE view guidevisite as
+SELECT IDVISITA, count( DISTINCT g.LINGUA) as numero_lingue
+from VISITAGUIDATA vg 
+    inner join GESTISCE g using (IDVISITA)
+group by IDVISITA;
+
+
+
+create or REPLACE trigger tr_prenotazionevisita
+before insert on PRENOTAZIONEVISITA
+for EACH row
+DECLARE
+    v_prenotati number := 0;
+    n_guide NUMBER := 0;
+    v_maxprenotati number;
+    V_COUNT INTEGER;
+BEGIN
+
+    SELECT NPERSONE into v_maxprenotati
+    from VISITAGUIDATA
+    where IDVISITA = :new.IDVISITA;
+
+    SELECT COUNT(*)
+    INTO N_GUIDE
+    FROM GUIDA
+    INNER JOIN GESTISCE ON GUIDA.IDGUIDA = GESTISCE.IDGUIDA
+    WHERE IDVISITA = :NEW.IDVISITA
+        and LINGUA = :NEW.LINGUA;
+    
+    V_MAXPRENOTATI := N_GUIDE * V_MAXPRENOTATI;
+
+    SELECT COUNT(*) INTO V_COUNT
+    FROM PRENOTAZIONEVISITA PV
+    WHERE PV.LINGUA = :NEW.LINGUA
+    AND PV.IDVISITA = :NEW.IDVISITA;
+
+    IF V_COUNT > 0 THEN
+        SELECT SUM(PV.NUMEROBIGLIETTI) INTO V_PRENOTATI
+        FROM PRENOTAZIONEVISITA PV
+        WHERE PV.LINGUA = :NEW.LINGUA
+        AND PV.IDVISITA = :NEW.IDVISITA;
+    END IF;
+    if (v_prenotati + :new.NUMEROBIGLIETTI) > v_maxprenotati then
+        raise_application_error(-20001, 'Numero biglietti superiore a ' || v_maxprenotati );
+    end if;
+
+end;
+/
+
+
+---------Author: Luca Borrello ---------------------
+
+-------- testcase
+
+--trigger meno postiliberi
+--insert into PRENOTAZIONE (IDPRENOTAZIONE, IDCLIENTE,IDCROCIERA,COSTOBASE,DATAPRENOTAZIONE,QUANTITASALDATA)values (6,6,1,2400, TO_DATE('2023/01/02', 'YYYY-MM-DD'), 2400);
+--insert into PREPRENOTAZIONE (IDPRENOTAZIONE, TIPOLOGIA, QUANTITA) VALUES (6,'Doppia',2);
+
+--trigger meno posti liberi exception
+--insert into PREPRENOTAZIONE (IDPRENOTAZIONE, TIPOLOGIA, QUANTITA) VALUES (5,'Tripla',1);
+
+--trigger meno posti liberi
+--delete from PREPRENOTAZIONE P where P.IDPRENOTAZIONE=6;
+
+--trigger camera non disponibile
+--update camera set ISDISPONIBILE=0 where idcamera=4;
+
+--trigger camera disponibile
+--update camera set ISDISPONIBILE=1 where idcamera=4;
+
+--trigger exception
+--insert into VISITEDISPONIBILI (IDCROCIERA, IDVISITA, DataVisita) VALUES (2,2, TO_DATE('2023/02/02', 'YYYY-MM-DD'));
+
+--trigger check visita data
+--insert into VISITEDISPONIBILI (IDCROCIERA, IDVISITA, DataVisita) VALUES (2,2, TO_DATE('2023/02/16', 'YYYY-MM-DD'));
+
+
+
+CREATE OR REPLACE TRIGGER MENO_POSTILIBERI BEFORE
+    INSERT ON PREPRENOTAZIONE FOR EACH ROW
+DECLARE
+    IDCR            number;
+    TIPO            VARCHAR2(255);
+    QUANTI          number;
+    POSTILIBERI     number;
+    singola varchar2(255) := 'Singola';
+    doppia varchar2(255) := 'Doppia';
+BEGIN
+
+    TIPO:= :NEW.TIPOLOGIA;
+    QUANTI:= :NEW.QUANTITA;
+
+    SELECT
+        P.IDCROCIERA INTO IDCR
+    FROM
+        PRENOTAZIONE P
+    WHERE
+        P.IDPRENOTAZIONE=:NEW.IDPRENOTAZIONE;
+
+    SELECT
+        NUMEROPOSTILIBERI INTO POSTILIBERI
+    FROM
+        DISPONIBILITACAMERE
+    WHERE
+        IDCROCIERA=IDCR
+        AND TIPOLOGIA=TIPO;
+
+
+    IF (TIPO=singola) THEN
+        QUANTI:=QUANTI+0;
+    ELSIF (TIPO=doppia) THEN
+        QUANTI:=QUANTI*2;
+    ELSE
+        QUANTI:=QUANTI*3;
+    END IF;
+    IF (POSTILIBERI - QUANTI<0) THEN
+        RAISE_APPLICATION_ERROR(-20001, 'Posti non disponibili per questa tipologia.');
+    ELSE
+        UPDATE DISPONIBILITACAMERE
+        SET
+            NUMEROPOSTILIBERI = NUMEROPOSTILIBERI - QUANTI
+        WHERE
+            IDCROCIERA=IDCR
+            AND TIPOLOGIA=TIPO;
+    END IF;
+END;
+/
+
+
+CREATE OR REPLACE TRIGGER PIU_POSTILIBERI BEFORE
+    DELETE ON PREPRENOTAZIONE FOR EACH ROW
+DECLARE
+    IDCR        NUMBER;
+    TIPO        VARCHAR2(255);
+    QUANTI      NUMBER;
+    POSTILIBERI NUMBER;
+    POSTITOTALI NUMBER;
+    SINGOLA     VARCHAR2(255) := 'Singola';
+    DOPPIA      VARCHAR2(255) := 'Doppia';
+BEGIN
+    TIPO:= :old.TIPOLOGIA;
+    QUANTI:= :old.QUANTITA;
+    SELECT
+        IDCROCIERA INTO IDCR
+    FROM
+        PRENOTAZIONE
+    WHERE
+        IDPRENOTAZIONE=:old.IDPRENOTAZIONE;
+    SELECT
+        NUMEROPOSTITOTALI INTO POSTITOTALI
+    FROM
+        DISPONIBILITACAMERE
+    WHERE
+        IDCROCIERA=IDCR
+        AND TIPOLOGIA=TIPO;
+
+    SELECT
+        NUMEROPOSTILIBERI INTO POSTILIBERI
+    FROM
+        DISPONIBILITACAMERE
+    WHERE
+        IDCROCIERA=IDCR
+        AND TIPOLOGIA=TIPO;
+    IF (TIPO=SINGOLA) THEN
+        QUANTI:=QUANTI+0;
+    ELSIF (TIPO=DOPPIA) THEN
+        QUANTI:=QUANTI*2;
+    ELSE
+        QUANTI:=QUANTI*3;
+    END IF;
+    IF (POSTILIBERI + QUANTI>POSTITOTALI) THEN
+        UPDATE DISPONIBILITACAMERE
+        SET
+            NUMEROPOSTILIBERI = POSTITOTALI
+        WHERE
+            IDCROCIERA=IDCR
+            AND TIPOLOGIA=TIPO;
+    ELSE
+        UPDATE DISPONIBILITACAMERE
+        SET
+            NUMEROPOSTILIBERI = NUMEROPOSTILIBERI + QUANTI
+        WHERE
+            IDCROCIERA=IDCR
+            AND TIPOLOGIA=TIPO;
+    END IF;
+END;
+/
+
+
+
+CREATE OR REPLACE TRIGGER CHECK_DATAVISITA BEFORE
+    INSERT ON VISITEDISPONIBILI FOR EACH ROW
+DECLARE
+    ID_TOUR NUMBER;
+    DATA_C  DATE;
+    N_NOTTI NUMBER;
+BEGIN
+    SELECT
+        DATACROCIERA INTO DATA_C
+    FROM
+        CROCIERA
+    WHERE
+        IDCROCIERA=:NEW.IDCROCIERA;
+    SELECT
+        IDTOUR INTO ID_TOUR
+    FROM
+        CROCIERA
+    WHERE
+        IDCROCIERA=:NEW.IDCROCIERA;
+    SELECT
+        NUMERONOTTI INTO N_NOTTI
+    FROM
+        TOUR T
+    WHERE
+        IDTOUR=ID_TOUR;
+    IF (:NEW.DATAVISITA < DATA_C
+    OR :NEW.DATAVISITA > DATA_C + N_NOTTI) THEN
+        RAISE_APPLICATION_ERROR(-20001, 'Data visita sbagliata.');
+    END IF;
+END;
+/
+
+
+CREATE OR REPLACE TRIGGER CAMERA_NON_DISPONIBILE BEFORE
+    UPDATE OF ISDISPONIBILE ON CAMERA FOR EACH ROW WHEN (NEW.ISDISPONIBILE = 0)
+DECLARE
+    SINGOLA       VARCHAR2(255) := 'Singola';
+    DOPPIA        VARCHAR2(255) := 'Doppia';
+    V_TIPOLOGIA   VARCHAR2(255);
+    C_IDCR        SYS_REFCURSOR;
+    V_ID_CROCIERA NUMBER;
+    V_QUANTI      NUMBER;
+    POSTILIBERI   NUMBER;
+BEGIN
+    V_TIPOLOGIA:= :OLD.TIPOLOGIA;
+    IF (:NEW.TIPOLOGIA=SINGOLA) THEN
+        V_QUANTI:=1;
+    ELSIF (:NEW.TIPOLOGIA=DOPPIA) THEN
+        V_QUANTI:=2;
+    ELSE
+        V_QUANTI:=3;
+    END IF;
+    OPEN C_IDCR FOR
+        SELECT
+            IDCROCIERA
+        FROM
+            CROCIERA
+        WHERE
+            IDNAVE = :OLD.IDNAVE;
+    LOOP
+        FETCH C_IDCR INTO V_ID_CROCIERA;
+        EXIT WHEN C_IDCR%NOTFOUND;
+
+        SELECT
+            NUMEROPOSTILIBERI INTO POSTILIBERI
+        FROM
+            DISPONIBILITACAMERE
+        WHERE
+            IDCROCIERA=V_ID_CROCIERA;
+
+        IF (POSTILIBERI - V_QUANTI<=0) THEN
+            UPDATE DISPONIBILITACAMERE
+            SET
+                NUMEROPOSTITOTALI = NUMEROPOSTITOTALI - V_QUANTI
+            WHERE
+                IDCROCIERA = V_ID_CROCIERA
+                AND TIPOLOGIA = V_TIPOLOGIA;
+        ELSE
+            UPDATE DISPONIBILITACAMERE
+            SET
+                NUMEROPOSTILIBERI = NUMEROPOSTILIBERI - V_QUANTI
+            WHERE
+                IDCROCIERA = V_ID_CROCIERA
+                AND TIPOLOGIA = V_TIPOLOGIA;
+            UPDATE DISPONIBILITACAMERE
+            SET
+                NUMEROPOSTITOTALI = NUMEROPOSTITOTALI - V_QUANTI
+            WHERE
+                IDCROCIERA = V_ID_CROCIERA
+                AND TIPOLOGIA = V_TIPOLOGIA;
+        END IF;
+    END LOOP;
+    CLOSE C_IDCR;
+END;
+/
+
+
+CREATE OR REPLACE TRIGGER CAMERA_DISPONIBILE BEFORE
+    UPDATE OF ISDISPONIBILE ON CAMERA FOR EACH ROW WHEN (NEW.ISDISPONIBILE = 1)
+DECLARE
+    SINGOLA       VARCHAR2(255) := 'Singola';
+    DOPPIA        VARCHAR2(255) := 'Doppia';
+    V_TIPOLOGIA   VARCHAR2(255);
+    C_IDCR        SYS_REFCURSOR;
+    V_ID_CROCIERA number;
+    V_QUANTI      number;
+BEGIN
+    V_TIPOLOGIA:= :old.TIPOLOGIA;
+    IF (:NEW.TIPOLOGIA=SINGOLA) THEN
+        V_QUANTI:=1;
+    ELSIF (:NEW.TIPOLOGIA=DOPPIA) THEN
+        V_QUANTI:=2;
+    ELSE
+        V_QUANTI:=3;
+    END IF;
+    OPEN C_IDCR FOR
+        SELECT
+            IDCROCIERA
+        FROM
+            CROCIERA
+        WHERE
+            IDNAVE = :old.IDNAVE;
+    LOOP
+        FETCH C_IDCR INTO V_ID_CROCIERA;
+        EXIT WHEN C_IDCR%NOTFOUND;
+        UPDATE DISPONIBILITACAMERE
+        SET
+            NUMEROPOSTILIBERI = NUMEROPOSTILIBERI + V_QUANTI
+        WHERE
+            IDCROCIERA = V_ID_CROCIERA
+            AND TIPOLOGIA = V_TIPOLOGIA;
+        UPDATE DISPONIBILITACAMERE
+        SET
+            NUMEROPOSTITOTALI = NUMEROPOSTITOTALI + V_QUANTI
+        WHERE
+            IDCROCIERA = V_ID_CROCIERA
+            AND TIPOLOGIA = V_TIPOLOGIA;
+    END LOOP;
+    CLOSE C_IDCR;
+END;
+/
+
+-----------Author: Gabriele ----------------------
+
+CREATE OR REPLACE TRIGGER PRENOTAZIONE_VISITE_LINGUA BEFORE
+    INSERT ON PRENOTAZIONEVISITA FOR EACH ROW
+DECLARE
+    RES INTEGER;
+BEGIN
+    SELECT
+        COUNT(*) INTO RES
+    FROM
+        VISITAGUIDATA VG
+        JOIN GESTISCE G
+        ON VG.IDVISITA = G.IDVISITA
+    WHERE
+        VG.IDVISITA = :NEW.IDVISITA
+        AND UPPER(G.LINGUA) = UPPER(:NEW.LINGUA);
+    IF RES = 0 THEN
+        RAISE_APPLICATION_ERROR(-20001, 'Lingua non disponibile.');
+    END IF;
+END;
+/
