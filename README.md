@@ -1,10 +1,11 @@
 # DatabaseProject
-Repository for database's project ISBD for programming database course
+Repository for database's project ISBD for programming database course.
 
-Project for database programming exam. In this project, three groups were created to work in different areas. Each one worked on the specific development of an idea:
+Project for database programming exam. In this project, three groups were created (each one with 2 students) to work in different areas. Each one worked on the specific development of an idea:
 1. Orange group: design the relational logic schema, creating all the initial setup for tables, triggers, views
-2. Blue group: design the system 
-3. Green group.
+2. Blue group: design the system setup, permissions, and privileges.
+3. Green group: design the skeleton of the web page, constant in css and the style of the web page in plsql language.
+Later each group designed its own functions and operations to use in the web page and to navigate among the different pages.
 
 Instruction to install all setup for database with order how to execute files:
 1) tables.sql
