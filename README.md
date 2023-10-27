@@ -1,10 +1,10 @@
 # DatabaseProject
-Repository for database's project ISBD for programming database course.
+Repository for database project ISBD for programming database course.
 
 Project for database programming exam. In this project, three groups were created (each one with 2 students) to work in different areas. Each one worked on the specific development of an idea:
 1. Orange group: design the relational logic schema, creating all the initial setup for tables, triggers, views
 2. Blue group: design the system setup, permissions, and privileges.
-3. Green group: design the skeleton of the web page, constant in css and the style of the web page in plsql language.
+3. Green group: design the skeleton of the web page, constant in CSS and the style of the web page in PLSQL language.
 Read all details about the design style, implementations, schemas, and more on the specific page Documentation of the project. (https://github.com/ilmangusta/DatabaseProject/tree/main/Documentation)
 Later each group designed its own functions and operations to use in the web page and to navigate among the different pages.
 
@@ -33,10 +33,10 @@ Instruction to install all setup for database with order how to execute files:
 22) GRANT EXECUTE ON BLU TO ANONYMOUS;
 main page of site: http://oracle01.polo2.ad.unipi.it:8080/apex/{NOMEUTENTE DATABASE}.gui.aprihomepage
 23) Rules and credentials to use and navigate properly on the site:
-UTENTE sys PASSWORD Lbd2023. // (includere il punto nella password)
-UTENTE UTENTE2223 PASSWORD utente2223
-UTENTE UTENTETEST2223 PASSWORD utentetest2223
-UTENTE ROSONE PASSWORD Rosone23
+UTENTE sys PASSWORD Lbd2023. // (includere il punto nella password);
+UTENTE UTENTE2223 PASSWORD utente2223;
+UTENTE UTENTETEST2223 PASSWORD utentetest2223;
+UTENTE ROSONE PASSWORD Rosone23;
 24) Different roles and permissions:
 ----RUOLO ADMIN-------
 USERNAME : ADMIN
