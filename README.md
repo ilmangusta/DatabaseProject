@@ -5,6 +5,7 @@ Project for database programming exam. In this project, three groups were create
 1. Orange group: design the relational logic schema, creating all the initial setup for tables, triggers, views
 2. Blue group: design the system setup, permissions, and privileges.
 3. Green group: design the skeleton of the web page, constant in css and the style of the web page in plsql language.
+Read all details about the design style, implementations, schemas, and more on the specific page Documentation of the project. (https://github.com/ilmangusta/DatabaseProject/tree/main/Documentation)
 Later each group designed its own functions and operations to use in the web page and to navigate among the different pages.
 
 Instruction to install all setup for database with order how to execute files:
