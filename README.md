@@ -32,23 +32,43 @@ Instruction to install all setup for database with order how to execute files:
 20) GRANT EXECUTE ON ROSSO TO ANONYMOUS;
 21) GRANT EXECUTE ON GVERDE TO ANONYMOUS;
 22) GRANT EXECUTE ON BLU TO ANONYMOUS;
-main page of site: http://oracle01.polo2.ad.unipi.it:8080/apex/{NOMEUTENTE DATABASE}.gui.aprihomepage
+
+main page of site: http://oracle01.polo2.ad.unipi.it:8080/apex/{NOMEUTENTE DATABASE}.gui.aprihomepage --
+
 23) Rules and credentials to use and navigate properly on the site:
-UTENTE sys PASSWORD Lbd2023. // (includere il punto nella password);
-UTENTE UTENTE2223 PASSWORD utente2223;
-UTENTE UTENTETEST2223 PASSWORD utentetest2223;
-UTENTE ROSONE PASSWORD Rosone23;
+
+UTENTE sys PASSWORD Lbd2023. // (includere il punto nella password)
+
+UTENTE UTENTE2223 PASSWORD utente2223
+
+UTENTE UTENTETEST2223 PASSWORD utentetest2223
+
+UTENTE ROSONE PASSWORD Rosone23
+
 24) Different roles and permissions:
+
 ----RUOLO ADMIN-------
+
 USERNAME : ADMIN
+
 PASSWORD : ADMIN
+
 ----RUOLO TOUR--------
+
 USERNAME : laura_lete
+
 PASSWORD : laura_lete
+
 ----RUOLO CROCIERE----
+
 USERNAME : giulia_verdi
+
 PASSWORD : giulia_verdi
+
 ----RUOLO STATISTA----
+
 USERNAME : eugenio_impastato
+
 PASSWORD : eugenio_impastato
+
 
